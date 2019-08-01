@@ -1,0 +1,3 @@
+width:300
+height:200
+mode(1-resize,2-crop):1

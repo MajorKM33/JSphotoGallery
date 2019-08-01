@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>WWW - Galeria</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="head">Galeria WWW</div>
+    <div id="main">
+        <div id="fullPhoto">
+            <figure id="fullFig">
+                <img src="" id="fullImg"/>
+                <figcaption id="fullCap"></figcaption>
+            </figure>
+        </div>
+        <div id="nav">Kategoria: </div>
+        <div id="content"></div>
+    </div>
+    <div id="foot">Michał Ciborowski, Teleinformatyka rok 2</div>
+
+    <script>
+                                        //  Funkcja czytająca pliki, zwraca ich zawartość
+        function readTextFile(file)
+        {
+            var rawFile = new XMLHttpRequest();
+            var allText = "";
+            rawFile.open("GET", file, false);
+            rawFile.onreadystatechange = function ()
+            {
+                if(rawFile.readyState === 4)
+                {
+                    if(rawFile.status === 200 || rawFile.status == 0)
+                    {
+                        allText = rawFile.responseText;
+                        return allText;
+                    }
+                }
+            }
+            rawFile.send(null);
+            return allText;
+        }
+                                                    //  Znalezienie elementów strony w html
+        var nav = document.getElementById('nav');
+        var main = document.getElementById('main');
+        var fullPhoto = document.getElementById('fullPhoto');
+        var fullFig = document.getElementById('fullFig');
+        var fullImg = document.getElementById('fullImg');
+        var fullCap = document.getElementById('fullCap');
+        var content = document.getElementById('content');   // Funkcje zapobiegające kopiowaniu
+        fullPhoto.addEventListener("contextmenu",function(e){
+            e.preventDefault();
+            return false;
+        }, false);
+        fullPhoto.addEventListener("mousedown",function(e){
+            e.preventDefault();
+            return false;
+        }, false);
+        content.addEventListener("contextmenu",function(e){
+            e.preventDefault();
+            return false;
+        }, false);
+        content.addEventListener("mousedown",function(e){
+            e.preventDefault();
+            return false;
+        }, false);
+        var currentDir = "";
+        var imgH = 0;
+        var imgW = 0;
+        var imgMode = 0;
+
+        function checkConfig(){                         //  Odczyt konfiguracji z pliku
+            var confData = readTextFile("config.txt").split("\n");
+            imgW = confData[0].split(":")[1].slice(0, -1);
+            imgH = confData[1].split(":")[1].slice(0, -1);
+            imgMode = confData[2].split(":")[1].slice(0, -1);
+        }
+
+        function downloadData(mode=1){          //  Ajax, kontaktuje się z php
+            var oReq = new XMLHttpRequest();
+            if(mode == 1){                      //  mode=1 - pobranie listy kategorii
+                currentDir = "";
+                oReq.onload = function() {      // w momencie odebrania danych
+                    data = JSON.parse(this.responseText);
+                    var select = document.createElement("select");
+                    for(i = 0; i < data.length; i++){   //  tworzenie menu kategorii
+                        if( data[i] != "." && data[i] != ".."){
+                            var option = document.createElement("option");
+                            option.innerHTML = data[i];
+                            option.value = data[i];
+                            select.append(option);
+                        }
+                    }
+                    select.addEventListener("change",function(){
+                        currentDir = this.value;    //  zmiana kategorii
+                        downloadData(2);
+                    })
+                    nav.append(select);
+                    currentDir = data[2];
+                    downloadData(2);
+                };
+                oReq.open("get", "get_data.php?data=1", true);  // wysłanie zapytania do php
+                oReq.send();
+            }
+            else if(mode == 2){     //  mode=2 - pobranie listy zdjęć w folderze
+                while(content.firstChild) {
+                    content.removeChild(content.firstChild);
+                }
+                oReq.onload = function() {  // w momencie odebrania danych
+                    data = JSON.parse(this.responseText);
+                    for(i = 0; i < data.length; i++){
+                        if( data[i].includes(".jpg") ){
+                            var fig = document.createElement("figure");     //  tworzenie miniaturek
+                            var imgBtn = document.createElement("img");
+                            fig.className = "figImg";
+                            imgBtn.className = "imgBtn";
+                            imgBtn.src = "pictures/" + currentDir + "/" + data[i];
+                            imgBtn.id = "img_" + data[i];
+                            if( imgMode == 1 ){     // imgMode=1 - tryb resize
+                                imgBtn.width = imgW;
+                                imgBtn.height = imgH;
+                                fig.append(imgBtn);
+                            }if( imgMode == 2 ){    // imgMode=2 - tryb crop
+                                fig.append(imgBtn);
+                                var tmpImgW = imgBtn.clientWidth;
+                                var tmpImgH = imgBtn.clientHeight;
+                                console.log("1: " + tmpImgW + " " + tmpImgH);
+                                fig.removeChild(imgBtn);
+                                var divImg = document.createElement("div");
+                                divImg.className = "divImg";
+                                divImg.setAttribute("style","max-width:"+imgW+"px;max-height:"+imgH+"px");
+                                console.log("2: " + tmpImgW + " " + tmpImgH);
+                                imgBtn.setAttribute("style","left:"+((tmpImgW-imgW)/2)+"px;top:"+((tmpImgH-imgH)/2)+"px");
+                                divImg.append(imgBtn);
+                                fig.append(divImg);
+                            }
+                            imgBtn.addEventListener("click",function(){ //  Wyświetlenie zdjęcia w większym rozmiarze
+                                fullImg.src = this.src;
+                                var imgName = readTextFile(this.src.replace(".jpg",".txt"))
+                                fullCap.innerHTML = imgName;
+                                fullPhoto.style.display = "block";
+                            });
+                            var cap = document.createElement("figcaption");     //  czytanie podpisu z pliku .txt
+                            var imgName = readTextFile("pictures/"+currentDir+"/"+data[i].replace(".jpg",".txt"))
+                            cap.innerHTML = imgName;
+                            fig.style.height = parseInt(imgH) + 20 + "px";
+                            fig.append(cap);
+                            content.append(fig);
+                        }
+                    }
+                };                                      // wysłanie zapytania do php
+                oReq.open("get", "get_data.php?data=1&dir=" + currentDir, true);
+                oReq.send();
+            }
+        }
+
+        checkConfig();
+        downloadData(1);
+
+    </script>
+
+</body>
+</html>
